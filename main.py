@@ -1,21 +1,19 @@
-import csv, os, time
+import csv, os, time, copy
 from multi import *
 from single import *
 
 sudokus = []
 filenameMulti = "outputMulti.txt"
 filenameSingle = "outputSingle.txt"
-def print_sudoku(board,file):
+def write_sudoku(board,file):
     with open(file, 'a') as f:
-        f.write("-"*37+"\n")
+        f.write("-"*25+"\n")
         for i, row in enumerate(board):
-            f.write(("|" + " {}   {}   {} |"*3+"\n").format(*[x if x != 0 else " " for x in row]))
+            f.write(("|" + " {} {} {} |"*3+"\n").format(*[x if x != 0 else " " for x in row]))
             if i == 8:
-                f.write("-"*37+"\n")
+                f.write("-"*25+"\n")
             elif i % 3 == 2:
-                f.write("|" + "---+"*8 + "---|\n")
-            else:
-                f.write("|" + "   +"*8 + "   |\n")
+                f.write("|" + "---"*7 + "--|\n")
 
 
 if os.path.exists(filenameMulti): os.remove(filenameMulti)
@@ -30,24 +28,14 @@ with open('input.txt', 'r') as f:
         if row != []:
             current_sudoku.append(row)
         if len(current_sudoku) == 9:
-            print_sudoku(current_sudoku,filenameMulti)
-            print_sudoku(current_sudoku,filenameSingle)
+            write_sudoku(current_sudoku,filenameMulti)
+            write_sudoku(current_sudoku,filenameSingle)
             sudokus.append(current_sudoku)
             current_sudoku = []
         row = []
 
-#multi
-tStart = time.time()
-finishedSudokus = sudokuSolverM(sudokus)
-tEnd = time.time()
-finalTime = tEnd - tStart
-with open(filenameMulti, 'a') as f:
-        f.write("Temps : "+ str(finalTime) +"\n")
-
-for current_sudoku in finishedSudokus :
-    print_sudoku(current_sudoku,filenameMulti)
-
 #single
+sudokusCopy = copy.deepcopy(sudokus)
 tStart = time.time()
 finishedSudokus = sudokuSolverS(sudokus)
 tEnd = time.time()
@@ -56,4 +44,15 @@ with open(filenameSingle, 'a') as f:
         f.write("Temps : "+ str(finalTime) +"\n")
 
 for current_sudoku in finishedSudokus :
-    print_sudoku(current_sudoku,filenameSingle)
+    write_sudoku(current_sudoku,filenameSingle)
+
+#multi
+tStart = time.time()
+finishedSudokus = sudokuSolverM(sudokusCopy)
+tEnd = time.time()
+finalTime = tEnd - tStart
+with open(filenameMulti, 'a') as f:
+        f.write("Temps : "+ str(finalTime) +"\n")
+
+for current_sudoku in finishedSudokus :
+    write_sudoku(current_sudoku,filenameMulti)

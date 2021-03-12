@@ -1,8 +1,6 @@
-import time
 
 def sudokuSolverM(sudokus):
-    print("inside")
-    time.sleep(5.5)
-
+    print("inside1")
+    
 
     return sudokus
