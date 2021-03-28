@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Enlever les fichiers OUTPUT qui changent toujours
+outputMulti.txt
+outputSingle.txt
