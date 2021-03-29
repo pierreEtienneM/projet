@@ -1,7 +1,9 @@
 import time
-list_sudoku = []
+from main import getSudoku, write_sudoku
 
-#retourne le prochain élément égal à 0 (vide)
+filenameSingle = "outputSingle.txt"
+
+#retourne le prochain element egal a 0 (vide)
 def getNextEmpty(sudoku):
     for i in range(len(sudoku)):
         for j in range(len(sudoku[0])):
@@ -10,7 +12,7 @@ def getNextEmpty(sudoku):
     
     return False
 
-#retourne vrai ou faux selon la validité du sudoku
+#retourne vrai ou faux selon la validite du sudoku
 def is_valid(sudoku, num, row, col):
     #on regarde les colonnes vertical 9x1
     for i in range(len(sudoku)):
@@ -30,12 +32,12 @@ def is_valid(sudoku, num, row, col):
     
     return True
 
-#recursivement fait du backtracking en ajoutant les éléments 1-9 dans chaque case et lorsqu'une case n'est pas valide pour tout les nombre 1-9
-#on recule en arrière jusqu'à ce qu'une case soit valide. On termine lorsqu'il n'y a plus de case vide.
+#recursivement fait du backtracking en ajoutant les elements 1-9 dans chaque case et lorsqu'une case n'est pas valide pour tout les nombre 1-9
+#on recule en arriere jusqu'a ce qu'une case soit valide. On termine lorsqu'il n'y a plus de case vide.
 def solveSudoku(sudoku):
     nextCell = getNextEmpty(sudoku)
 
-    #si getNextEmpty retourne False on a terminé, tout les cell ne contiennent plus 0
+    #si getNextEmpty retourne False on a termine, tout les cell ne contiennent plus 0
     if nextCell == False:
         return True
     else:
@@ -48,17 +50,27 @@ def solveSudoku(sudoku):
             if solveSudoku(sudoku):
                 return True
 
-            #si is_valid retourne faux on backtrack jusqu'à ce qu'il donne vrai
+            #si is_valid retourne faux on backtrack jusqu'a ce qu'il donne vrai
             sudoku[row][col] = 0
 
     return False
     
-#boucle sur la liste de sudoku en entré et retourne les sudoku terminés    
-def sudokuSolverS(sudokus):
-    print("starting Single")
-    for sudoku in sudokus:
-        solveSudoku(sudoku)
-        list_sudoku.append(sudoku)
+#fonction principale  
+list_sudoku = []
+sudokus = getSudoku(filenameSingle)
+print("starting Single")
+tStart = time.time()
+for sudoku in sudokus:
+    solveSudoku(sudoku)
+    list_sudoku.append(sudoku)
 
-    print("ending Single")
-    return list_sudoku
+tEnd = time.time()
+finalTime = tEnd - tStart
+print("ending Single")
+
+print("printing Result")
+with open(filenameSingle, 'a') as f:
+    f.write("Temps : "+ str(finalTime) +"\n")
+
+for current_sudoku in list_sudoku :
+    write_sudoku(current_sudoku,filenameSingle)

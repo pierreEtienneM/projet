@@ -1,10 +1,5 @@
-import csv, os, time, copy
-from multi import *
-from single import *
+import csv, os, time, copy, sys
 
-sudokus = []
-filenameMulti = "outputMulti.txt"
-filenameSingle = "outputSingle.txt"
 def write_sudoku(board,file):
     with open(file, 'a') as f:
         f.write("-"*25+"\n")
@@ -16,43 +11,23 @@ def write_sudoku(board,file):
                 f.write("|" + "---"*7 + "--|\n")
 
 
-if os.path.exists(filenameMulti): os.remove(filenameMulti)
-if os.path.exists(filenameSingle): os.remove(filenameSingle)
-with open('input.txt', 'r') as f:
-    current_sudoku = []
-    row = []
-    for line in f:
-        for num in line.split(','):
-            if num != '\n':
-                row.append(int(num))
-        if row != []:
-            current_sudoku.append(row)
-        if len(current_sudoku) == 9:
-            write_sudoku(current_sudoku,filenameMulti)
-            write_sudoku(current_sudoku,filenameSingle)
-            sudokus.append(current_sudoku)
-            current_sudoku = []
+def getSudoku(file):
+    if os.path.exists(file): os.remove(file)
+    sudokus = []
+
+    with open('input.txt', 'r') as f:
+        current_sudoku = []
         row = []
-
-#single
-sudokusCopy = copy.deepcopy(sudokus)
-tStart = time.time()
-finishedSudokus = sudokuSolverS(sudokus)
-tEnd = time.time()
-finalTime = tEnd - tStart
-with open(filenameSingle, 'a') as f:
-        f.write("Temps : "+ str(finalTime) +"\n")
-
-for current_sudoku in finishedSudokus :
-    write_sudoku(current_sudoku,filenameSingle)
-
-#multi
-tStart = time.time()
-finishedSudokus = sudokuSolverM(sudokusCopy)
-tEnd = time.time()
-finalTime = tEnd - tStart
-with open(filenameMulti, 'a') as f:
-        f.write("Temps : "+ str(finalTime) +"\n")
-
-for current_sudoku in finishedSudokus :
-    write_sudoku(current_sudoku,filenameMulti)
+        for line in f:
+            if len(line) == 19:
+                for num in line.split(','):
+                    if num != '\n':
+                        row.append(int(num))
+                if row != []:
+                    current_sudoku.append(row)
+                if len(current_sudoku) == 9:
+                    write_sudoku(current_sudoku,file)
+                    sudokus.append(current_sudoku)
+                    current_sudoku = []
+                row = []
+    return sudokus
