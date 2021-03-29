@@ -1,3 +1,6 @@
+#https://github.com/pierreEtienneM/projet/
+#https://stackoverflow.com/questions/21088420/mpi4py-send-recv-with-tag/22952258#22952258
+
 from mpi4py import MPI
 from enum import Enum
 from copy import deepcopy
@@ -12,6 +15,7 @@ class Tags(Enum):
     NOTES_FIN = 6
     NOTES_KILL = 7
     NOTES_VALIDATE = 8
+    NOTES_VALIDATE_DONE = 9
     # TWINS
     READY_P2 = 17
     KILL_P2 = 18
@@ -71,10 +75,44 @@ def adminProcess(sudoku): # rank == 0
         source = stts.Get_source()
         binary[dataP1[0][0]][dataP1[0][1]] = dataP1[1]
     
-    # PART 1: VALIDATE DATA
-    for rowindex, row in enumerate(binary):
-        comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
-        comm.send([rowindex,row], dest=stts.Get_source(), tag=Tags.NOTES_VALIDATE.value)
+    # PART 1: VALIDATE DATA: ROWS, COLUMNS AND BOXES
+    redosteps = True
+    while redosteps:
+        sendedmessage = 0
+        for rowindex, row in enumerate(binary):
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            comm.send([rowindex, row, 1], dest=stts.Get_source(), tag=Tags.NOTES_VALIDATE.value)
+            # --
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            comm.send([rowindex, [rv[rowindex] for rv in binary], 2], dest=stts.Get_source(), tag=Tags.NOTES_VALIDATE.value)
+            sendedmessage += 2
+            # --
+            if rowindex // 3 == 0:
+                sendedmessage += 3
+                for colindex in range(0,9,3):
+                    comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+                    subbox = [rv[colindex:colindex+3] for rv in binary[(rowindex+0)*3:(rowindex+1)*3]]
+                    box = []
+                    box[0:3] = subbox[0]
+                    box[3:6] = subbox[1]
+                    box[6:9] = subbox[2]
+                    comm.send([((rowindex+0)*3,colindex), box, 3], dest=stts.Get_source(), tag=Tags.NOTES_VALIDATE.value)
+
+        redosteps = False
+        # PART 1: VERIFY IF WE NEED TO REDO STEPS
+        for indexmessage in range(sendedmessage):
+            data = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.NOTES_VALIDATE_DONE.value, status=stts)
+            if data[0] == True: # we will need to redo the steps
+                redosteps = True
+
+                if data[3] == 1:
+                    binary[data[1]] = data[2]
+                elif data[3] == 2:
+                    for i in range(9):
+                        binary[i][data[1]] = data[2][i]
+                else:# data[3] == 3:
+                    for i in range(9):
+                        binary[data[1][0]+(i//3)][data[1][1]+(i%3)] = data[2][i]
 
     printflush(binary)
 
@@ -121,29 +159,46 @@ def workerProcess(): # rank != 0
         
         return (pos, currentBox)
     def workerValidateNote(row):
-        fixedNumbers = []
-        newNotes = []
-        for number in row:
-            if number % 2 == 1: # nombre fixe, verifier si pas dans notes
-                fixedNumbers.append(number - 1)
-            else
-
+        # 1. trouver les nombre fixes
+        # 2. bitwise or pour enlever des notes
+        # 3. bitwise and pour trouver les puissance de 2
+        # 4. recommencer tant qu'il y a un changement
         
+        fixednumber = []
+        originalnotes = []
+        for numberindex, number in enumerate(row):
+            if number % 2 == 1:
+                fixednumber.append([number, numberindex])
+            else:
+                originalnotes.append([number, numberindex])
 
-
-        for notes in row:
-            if notes % 2 == 0:
-                for fixed in fixedNumbers:
-                    if notes >= fixed and notes | fixed == notes:
-                        notes -= fixed
-                    if 
-
-        printflush(fixedNumbers)
-            
+        #printflush((1,fixednumber, originalnotes))
+        gotchanged, gotchangedonce = True, False
         
-                        
-
-        return None
+        while gotchanged:
+            gotchanged = False
+            for noteindex, note in enumerate(originalnotes):
+                for fixed in fixednumber:
+                    if note[0] >= fixed[0] and note[0] | fixed[0] == note[0]:
+                        updatednote = originalnotes[noteindex][0] | fixed[0]
+                        originalnotes[noteindex][0] = updatednote
+                        gotchanged = True
+                        gotchangedonce = True
+                        if updatednote > 0 and updatednote & (updatednote - 1) == 0:
+                            fixednumber.append(originalnotes[noteindex])
+                        break
+                if gotchanged:
+                    break
+        if not gotchangedonce:
+            return (gotchangedonce, row)
+        else:
+            newrow = []
+            for x in originalnotes:
+                newrow[x[1]] = x[0]
+            for x in fixednumber:
+                newrow[x[1]] = x[0]
+            printflush(("IT HAPPENED-----------------", row, newrow, originalnotes, fixednumber))
+            return (gotchangedonce, newrow)
 
     # PARTIE 1
 
@@ -156,8 +211,8 @@ def workerProcess(): # rank != 0
             worker_package1 = workerNotes(task[0], task[1], task[2], task[3])
             comm.send(worker_package1, dest=0, tag=Tags.NOTES_FIN.value)
         elif tag == Tags.NOTES_VALIDATE.value:
-            workerValidateNote(task[1])
-            pass
+            result = workerValidateNote(task[1])
+            comm.send((result[0], task[0], result[1], task[2]), dest=0, tag=Tags.NOTES_VALIDATE_DONE.value)
         elif tag == Tags.NOTES_KILL.value:
             break
 
