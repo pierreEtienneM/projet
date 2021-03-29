@@ -51,6 +51,18 @@ def findTriplets():
 def printflush(message):
     print(message, flush=True)
 
+def printbinarydoku(sudoku, printtype=None):
+    for row in sudoku:
+        countfixed = 0
+        for cell in row:
+            if cell % 2 == 1:
+                countfixed += 1
+                print(" {:3} ".format(cell), end=" ")
+            else:
+                print("({:3})".format(cell), end=" ")
+        print("{}/9".format(countfixed))
+    pass
+
 def binaryku(sudoku):
     binarydoku = deepcopy(sudoku)
 
@@ -116,7 +128,7 @@ def adminProcess(sudoku): # rank == 0
             data = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.NOTES_VALIDATE_DONE.value, status=stts)
             if data[0] == True: # we will need to redo the steps
                 redosteps = True
-
+                print("HERE------")
                 if data[3] == 1:
                     binary[data[1]] = data[2]
                 elif data[3] == 2:
@@ -145,7 +157,7 @@ def adminProcess(sudoku): # rank == 0
             comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
             col = [row[i] for row in binary]
             comm.send([col, i, 2], dest=stts.Get_source(), tag=Tags.SEND_P2.value)
-
+            
             # BOXES
             comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
             subbox = [row[(i%3+0)*3:(i%3+1)*3] for row in binary[(i//3+0)*3:(i//3+1)*3]]
@@ -157,21 +169,26 @@ def adminProcess(sudoku): # rank == 0
 
         # RECEIVE DATA
         
-        for i in range(27):
+        printflush(("BEFORE", binary))
+
+        for i in range(9*3):
             data = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.RECV_P2.value, status=stts)
-            continue
+            
             if data[2] == True:
                 redosteps = True
-
+                
+                print(data)
                 for update in data[3]:
                     if data[1] == 1:
                         binary[data[0]][update[0]] = update[1]
-                    #elif data[1] == 2:
-                    #    binary[data[0]][update[0]] = update[1]
-                    #else:
-                    #    binary[data[0][0]+update[0]//3][data[0][1]+update[0]%3] = update[1]
+                    elif data[1] == 2:
+                        binary[update[0]][data[0]] = update[1]
+                    else:
+                        binary[data[0][0]*3+update[0]//3][data[0][1]*3+update[0]%3] = update[1]
 
-        printflush("looop")
+        printflush(("AFTER-", binary))
+        printbinarydoku(binary)
+        #printflush("looop")
 
         #########
         ## PART 2: END
@@ -180,7 +197,7 @@ def adminProcess(sudoku): # rank == 0
 
 
 
-    printflush(binary)
+    #printflush(binary)
 
     stillalive = size - 1
     while stillalive > 0:
@@ -280,15 +297,18 @@ def workerProcess(): # rank != 0
             reloop = False
             for i in range(1,10):
                 lr = 0
+                occ = 0
                 memindexj = None
                 num = 2**i
                 for j in range(9):
+                    if newrow[j] >= num and newrow[j] & num == num:
+                        occ += 1
                     if newrow[j] % 2 == 0 and newrow[j] >= num and newrow[j] & num == num:
                         lr += 1
                         memindexj = j
-                if lr == 1:
+                if lr == 1 and occ == 1: # quick & wierd fix but working
+                    lrindex.append([memindexj, num + 1, newrow[memindexj], occ])
                     newrow[memindexj] = num + 1 # fixed
-                    lrindex.append([memindexj, num + 1])
                     foundlr = True 
                     reloop = True
                     break
@@ -317,7 +337,7 @@ def workerProcess(): # rank != 0
             result = workerFindLR(task[0])
             #result[0]: found lr
             #result[1]: indexes of news
-            comm.send((task[1],task[2],result[0],result[1]), dest=0, tag=Tags.RECV_P2.value)
+            comm.send((task[1],task[2],result[0],result[1],task[0]), dest=0, tag=Tags.RECV_P2.value)
 
     # PARTIE 2
 
