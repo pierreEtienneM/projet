@@ -53,15 +53,13 @@ if rank == 0:
     for current_sudoku in finishedSudokus :
         write_sudoku(current_sudoku,filenameSingle)
 
+comm.barrier()
+
 #multi
 if rank == 0:
     tStart = time.time()
 
-comm.barrier()
-
 finishedSudokus = sudokuSolverM(sudokusCopy)
-
-comm.barrier()
 
 if rank == 0:
     tEnd = time.time()
@@ -71,3 +69,5 @@ if rank == 0:
 
     for current_sudoku in finishedSudokus :
         write_sudoku(current_sudoku,filenameMulti)
+
+comm.barrier()
