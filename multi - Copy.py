@@ -15,8 +15,11 @@ def getNextEmpty(sudoku):
 
     return False
 
+
+
 #retourne vrai ou faux selon la validite du sudoku
-def is_valid(sudoku, num, row, col):            
+def is_valid(sudoku, num, row, col):
+
     #on regarde les colonnes vertical 9x1
     for i in range(len(sudoku)):
         if sudoku[i][col] == num:
@@ -25,7 +28,7 @@ def is_valid(sudoku, num, row, col):
     #on regarde les range horizontal 9x1
     for i in range(len(sudoku[0])):
         if sudoku[row][i] == num:
-            return False    
+            return False
     
     #on regarde les boites 3x3
     for i in range((row // 3 ) * 3,(row // 3 ) * 3 + 3):
@@ -35,15 +38,18 @@ def is_valid(sudoku, num, row, col):
 
     return True
 
+
+
 #recursivement fait du backtracking en ajoutant les elements 1-9 dans chaque case et lorsqu'une case n'est pas valide pour tout les nombre 1-9
 #on recule en arriere jusqu'a ce qu'une case soit valide. On termine lorsqu'il n'y a plus de case vide.
+
 def solveSudoku(sudoku):
     nextCell = getNextEmpty(sudoku)
     (row,col) = nextCell  
 
     for num in range(1,10):
-        comm.send(sudoku, dest=num, tag=num)
-        comm.send((row,col), dest=num, tag=num)
+        comm.send(sudoku, dest=num, tag =num)
+        comm.send((row,col), dest=num, tag =num)
 
     while True:
         for i in range(1,10):
@@ -57,7 +63,7 @@ def solveMulti(sudoku):
     nextCell = getNextEmpty(sudoku)
 
     if nextCell == False:
-        comm.send(sudoku,dest=0,tag=100)
+        #comm.send(sudoku,dest=0,tag=100) plus quick ???
         return True
     else:
         (row,col) = nextCell
@@ -73,7 +79,10 @@ def solveMulti(sudoku):
             sudoku[row][col] = 0
 
     return False
-    
+
+pcs_column = [10,13,16,19,22,25,28,31,34,37]
+pcs_row = [11,14,17,20,23,26,29,32,35,38]
+pcs_box = [12,15,18,21,24,27,30,33,36,39]
 #master 0
 if rank == 0:
     list_sudoku = []
@@ -101,7 +110,7 @@ if rank == 0:
         write_sudoku(current_sudoku,filenameMulti)
 
 #workers 1-9
-elif rank > 0  and rank < 10:
+elif rank > 0 and rank < 10:
     while True:
         sudoku = comm.recv(source=0, tag=rank)
 
@@ -113,3 +122,6 @@ elif rank > 0  and rank < 10:
         if is_valid(sudoku, rank, row, col):
             sudoku[row][col] = rank
             result = solveMulti(sudoku)
+
+            if result == True:
+                comm.send(sudoku,dest=0,tag=100)
