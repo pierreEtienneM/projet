@@ -44,55 +44,16 @@ def is_valid(sudoku, num, row, col):
 
 def solveSudoku(sudoku):
     nextCell = getNextEmpty(sudoku)
-    while nextCell != False:
-        #si getNextEmpty retourne False on a termine, tout les cell ne contiennent plus 0
-        if nextCell == False:
-            return sudoku
-        else:
-            (row,col) = nextCell 
+    (row,col) = nextCell  
 
-        for num in range(1,10):
-            comm.send(sudoku, dest=num, tag =num)
-            comm.send((row,col), dest=num, tag =num)
-    
-    
-        listPcs = list(range(1,10))
-        found = False
-        while len(listPcs) > 1:
-            for i in listPcs:
-                if comm.Iprobe(source=i,tag=99):
-                    comm.recv(source=i,tag=99)
-                    listPcs.remove(i)
-                elif comm.Iprobe(source=listPcs[0],tag=200):
-                    sudoku = comm.recv(source=listPcs[0],tag=200)
-                    found = True
-                    listPcs= []
-                    break
-
-        if found == True:
-            break
-
-        if comm.Iprobe(source=listPcs[0],tag=200):
-            sudoku = comm.recv(source=listPcs[0],tag=200)
-            break
-
-        #envoie au dernier pcs qui travaille et le restart avec 9 pcs
-        comm.send(None,dest=listPcs[0],tag=101)
-                
-        sudoku[row][col] = listPcs[0]
-        
-        nextCell = getNextEmpty(sudoku)
-
-    return sudoku
+    for num in range(1,10):
+        comm.send(sudoku, dest=num, tag =num)
+        comm.send((row,col), dest=num, tag =num)
 
 def solveMulti(sudoku):
-    if comm.Iprobe(source = 0, tag=101):
-        comm.recv(source=0,tag=101)
-        return True
     nextCell = getNextEmpty(sudoku)
 
     if nextCell == False:
-        comm.send(sudoku,dest=0,tag=200)
         return True
     else:
         (row,col) = nextCell
@@ -115,17 +76,21 @@ if rank == 0:
     sudokus = getSudoku(filenameMulti)
     print("starting Multi")
     tStart = time.time()
+    comm.send(len(sudokus),dest=10,tag=10)
     
     for sudoku in sudokus:
-        s = solveSudoku(sudoku)
-        list_sudoku.append(s)
-        print("Sudoku Done")
+        solveSudoku(sudoku)
+        print("Sudoku Started")
+
+    print("All Sudoku Started")
+
+    list_sudoku = comm.recv(source=10, tag=200)
 
     tEnd = time.time()
     finalTime = tEnd - tStart
     print("ending Multi")
 
-    for i in range(1,10):
+    for i in range(1,11):
         print("killing worker : " + str(i))
         comm.send("kill", dest = i, tag=i)
 
@@ -137,7 +102,8 @@ if rank == 0:
 
 #workers
 
-elif rank > 0:
+elif rank > 0 and rank < 10:
+
     while True:
         sudoku = comm.recv(source=0, tag=rank)
 
@@ -150,7 +116,22 @@ elif rank > 0:
             sudoku[row][col] = rank
             result = solveMulti(sudoku)
 
-            if result == False:
-                comm.send(None,dest=0,tag=99)
-        else:
-            comm.send(None, dest=0, tag=99)
+            if result == True:
+                comm.send(sudoku,dest=10,tag=100)
+                print("Sudoku Completed")
+
+#mini-master qui arrange les informations pour sauver du temps du master
+
+elif rank == 10:
+    list_sudoku = []
+    numberOfSudokuExpected = comm.recv(source=0, tag =10)
+
+    while len(list_sudoku) < numberOfSudokuExpected:
+
+        for i in range(1,10):
+            if comm.Iprobe(source=i, tag=100):
+                sudoku = comm.recv(source=i, tag =100)
+                list_sudoku.append(sudoku)
+
+    print("last")
+    comm.send(list_sudoku,dest=0,tag=200)

@@ -62,6 +62,7 @@ print("starting Single")
 tStart = time.time()
 for sudoku in sudokus:
     solveSudoku(sudoku)
+    print("Sudoku Completed")
     list_sudoku.append(sudoku)
 
 tEnd = time.time()

@@ -14,20 +14,19 @@ def write_sudoku(board,file):
 def getSudoku(file):
     if os.path.exists(file): os.remove(file)
     sudokus = []
-
+    
     with open('input.txt', 'r') as f:
         current_sudoku = []
         row = []
         for line in f:
-            if len(line) == 19:
-                for num in line.split(','):
-                    if num != '\n':
-                        row.append(int(num))
-                if row != []:
-                    current_sudoku.append(row)
-                if len(current_sudoku) == 9:
-                    write_sudoku(current_sudoku,file)
-                    sudokus.append(current_sudoku)
-                    current_sudoku = []
-                row = []
+            for num in line.split(','):
+                if num != '\n':
+                    row.append(int(num))
+            if row != []:
+                current_sudoku.append(row)
+            if len(current_sudoku) == 9:
+                write_sudoku(current_sudoku,file)
+                sudokus.append(current_sudoku)
+                current_sudoku = []
+            row = []
     return sudokus
