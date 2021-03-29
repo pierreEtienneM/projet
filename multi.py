@@ -5,6 +5,9 @@ from mpi4py import MPI
 from enum import Enum
 from copy import deepcopy
 
+enum_p2BeginIndex = 10
+enum_p3BeginIndex = 20
+
 class Tags(Enum):
     READY = 1
     DONE = 2
@@ -16,9 +19,18 @@ class Tags(Enum):
     NOTES_KILL = 7
     NOTES_VALIDATE = 8
     NOTES_VALIDATE_DONE = 9
+    # LONE RANGERS
+    READY_P2 = enum_p2BeginIndex + 0
+    KILL_P2 = enum_p2BeginIndex + 1
+    SEND_P2 = enum_p2BeginIndex + 2
+    RECV_P2 = enum_p2BeginIndex + 3
+    LAST_P2 = enum_p2BeginIndex + 4
     # TWINS
-    READY_P2 = 17
-    KILL_P2 = 18
+    READY_P3 = enum_p3BeginIndex + 0
+    KILL_P3 = enum_p3BeginIndex + 1
+    LAST_P3 = enum_p3BeginIndex + 2
+
+assert Tags.READY_P3.value > Tags.LAST_P2.value
 
 comm = MPI.COMM_WORLD
 size = comm.size
@@ -114,6 +126,60 @@ def adminProcess(sudoku): # rank == 0
                     for i in range(9):
                         binary[data[1][0]+(i//3)][data[1][1]+(i%3)] = data[2][i]
 
+        if redosteps:
+            continue
+
+        #########
+        ## PART 2: LONE RANGERS
+        #########
+        # ONE VALUE POSSIBLE HIDDEN WITH MULTIPLE VALUES
+
+        # SEND ROWS, COLUMS AND BOXES
+        for i in range(9):
+            # ROWS
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            row = binary[i]
+            comm.send([row, i, 1], dest=stts.Get_source(), tag=Tags.SEND_P2.value)
+            
+            # COLUMNS
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            col = [row[i] for row in binary]
+            comm.send([col, i, 2], dest=stts.Get_source(), tag=Tags.SEND_P2.value)
+
+            # BOXES
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            subbox = [row[(i%3+0)*3:(i%3+1)*3] for row in binary[(i//3+0)*3:(i//3+1)*3]]
+            box = []
+            box[0:3] = subbox[0]
+            box[3:6] = subbox[1]
+            box[6:9] = subbox[2]
+            comm.send([box, (i//3,i%3), 3], dest=stts.Get_source(), tag=Tags.SEND_P2.value)
+
+        # RECEIVE DATA
+        
+        for i in range(27):
+            data = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.RECV_P2.value, status=stts)
+            continue
+            if data[2] == True:
+                redosteps = True
+
+                for update in data[3]:
+                    if data[1] == 1:
+                        binary[data[0]][update[0]] = update[1]
+                    #elif data[1] == 2:
+                    #    binary[data[0]][update[0]] = update[1]
+                    #else:
+                    #    binary[data[0][0]+update[0]//3][data[0][1]+update[0]%3] = update[1]
+
+        printflush("looop")
+
+        #########
+        ## PART 2: END
+        #########
+
+
+
+
     printflush(binary)
 
     stillalive = size - 1
@@ -199,6 +265,35 @@ def workerProcess(): # rank != 0
                 newrow[x[1]] = x[0]
             printflush(("IT HAPPENED-----------------", row, newrow, originalnotes, fixednumber))
             return (gotchangedonce, newrow)
+    def workerFindLR(row):
+        # trouve un nombre et compte combien de fois il le trouve dans la ligne
+        # si == 1, lone ranger
+        # recommencer car possible davoir plus que un ou que un lone ranger
+        # donne un autre lone ranger
+
+        foundlr = False
+        newrow = deepcopy(row)
+        reloop = True
+        lrindex = []
+
+        while reloop:
+            reloop = False
+            for i in range(1,10):
+                lr = 0
+                memindexj = None
+                num = 2**i
+                for j in range(9):
+                    if newrow[j] % 2 == 0 and newrow[j] >= num and newrow[j] & num == num:
+                        lr += 1
+                        memindexj = j
+                if lr == 1:
+                    newrow[memindexj] = num + 1 # fixed
+                    lrindex.append([memindexj, num + 1])
+                    foundlr = True 
+                    reloop = True
+                    break
+
+        return (foundlr, lrindex)
 
     # PARTIE 1
 
@@ -215,6 +310,14 @@ def workerProcess(): # rank != 0
             comm.send((result[0], task[0], result[1], task[2]), dest=0, tag=Tags.NOTES_VALIDATE_DONE.value)
         elif tag == Tags.NOTES_KILL.value:
             break
+        elif tag == Tags.SEND_P2.value:
+            #task[0]: line
+            #task[1]: position (send back)
+            #task[2]: type (send back)
+            result = workerFindLR(task[0])
+            #result[0]: found lr
+            #result[1]: indexes of news
+            comm.send((task[1],task[2],result[0],result[1]), dest=0, tag=Tags.RECV_P2.value)
 
     # PARTIE 2
 
