@@ -77,31 +77,37 @@ def adminProcess(sudoku): # rank == 0
 
     binary = binaryku(sudoku)
 
-    # PART 1: POSSIBLE VALUES
-    printflush(binary)
-    nbzeros = 0
-    for rowindex, row in enumerate(binary):
-        for colindex, cell in enumerate(row):
-            if cell == 0:
-                comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
-                source = stts.Get_source()
-
-                p1_box = [row[(colindex//3+0)*3:(colindex//3+1)*3] for row in binary[(rowindex//3+0)*3:(rowindex//3+1)*3]]
-                p1_column = [row[colindex] for row in binary]
-                p1_package = [p1_box, row, p1_column, (rowindex, colindex)]
-                
-                comm.send(p1_package, dest=source, tag=Tags.NOTES.value)
-                nbzeros += 1
-    
-    # PART 1: RECEIVE DATA FROM WORKERS
-    for i in range(nbzeros):
-        dataP1 = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.NOTES_FIN.value, status=stts)
-        source = stts.Get_source()
-        binary[dataP1[0][0]][dataP1[0][1]] = dataP1[1]
-    
-    # PART 1: VALIDATE DATA: ROWS, COLUMNS AND BOXES
     redosteps = True
     while redosteps:
+        # PART 1: POSSIBLE VALUES
+
+        print("BEFORE P1")
+        printbinarydoku(binary)
+
+        nbzeros = 0
+        for rowindex, row in enumerate(binary):
+            for colindex, cell in enumerate(row):
+                if cell % 2 == 0:
+                    comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+                    source = stts.Get_source()
+
+                    p1_box = [row[(colindex//3+0)*3:(colindex//3+1)*3] for row in binary[(rowindex//3+0)*3:(rowindex//3+1)*3]]
+                    p1_column = [row[colindex] for row in binary]
+                    p1_package = [p1_box, row, p1_column, (rowindex, colindex)]
+                    
+                    comm.send(p1_package, dest=source, tag=Tags.NOTES.value)
+                    nbzeros += 1
+        
+        # PART 1: RECEIVE DATA FROM WORKERS
+        for i in range(nbzeros):
+            dataP1 = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.NOTES_FIN.value, status=stts)
+            source = stts.Get_source()
+            binary[dataP1[0][0]][dataP1[0][1]] = dataP1[1]
+        
+        print("AFTER P1")
+        printbinarydoku(binary)
+    
+        # PART 1: VALIDATE DATA: ROWS, COLUMNS AND BOXES
         sendedmessage = 0
         for rowindex, row in enumerate(binary):
             comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
@@ -221,7 +227,7 @@ def adminProcess(sudoku): # rank == 0
 def workerProcess(): # rank != 0
     def workerNotes(box, row, col, pos):
         boxpos = (pos[0]%3,pos[1]%3)
-        currentBox = box[boxpos[0]][boxpos[1]]
+        currentBox = 0
         
         nb = 0
         for i in range(1,10):
