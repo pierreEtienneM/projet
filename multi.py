@@ -1,5 +1,6 @@
 #https://github.com/pierreEtienneM/projet/
 #https://stackoverflow.com/questions/21088420/mpi4py-send-recv-with-tag/22952258#22952258
+#https://cse.buffalo.edu/faculty/miller/Courses/CSE633/Sankar-Spring-2014-CSE633.pdf
 
 from mpi4py import MPI
 from enum import Enum
@@ -28,7 +29,8 @@ class Tags(Enum):
     # TWINS
     READY_P3 = enum_p3BeginIndex + 0
     KILL_P3 = enum_p3BeginIndex + 1
-    LAST_P3 = enum_p3BeginIndex + 2
+    SEND_P3 = enum_p3BeginIndex + 2
+    LAST_P3 = enum_p3BeginIndex + 3
 
 assert Tags.READY_P3.value > Tags.LAST_P2.value
 
@@ -73,6 +75,27 @@ def binaryku(sudoku):
 
     return binarydoku
 
+def humandoku(binarydoku):
+    humanodoku = deepcopy(binarydoku)
+    powers = [2**x+1 for x in range(1,10)]
+    for rowindex, row in enumerate(humanodoku):
+        for colindex, cel in enumerate(row):
+            if cel in powers:
+                humanodoku[rowindex][colindex] = powers.index(cel)+1
+
+    return humanodoku
+
+# worst case, one number remaining at the end
+def is_finished(sudoku):
+    for row in sudoku:
+        if row[0] % 2 == 0:
+            return False
+        for cell in row[1:]:
+            if cell % 2 == 0:
+                return False
+    return True
+        
+
 def adminProcess(sudoku): # rank == 0
 
     binary = binaryku(sudoku)
@@ -81,8 +104,8 @@ def adminProcess(sudoku): # rank == 0
     while redosteps:
         # PART 1: POSSIBLE VALUES
 
-        print("BEFORE P1")
-        printbinarydoku(binary)
+        #print("BEFORE P1")
+        #printbinarydoku(binary)
 
         nbzeros = 0
         for rowindex, row in enumerate(binary):
@@ -104,8 +127,8 @@ def adminProcess(sudoku): # rank == 0
             source = stts.Get_source()
             binary[dataP1[0][0]][dataP1[0][1]] = dataP1[1]
         
-        print("AFTER P1")
-        printbinarydoku(binary)
+        #print("AFTER P1")
+        #printbinarydoku(binary)
     
         # PART 1: VALIDATE DATA: ROWS, COLUMNS AND BOXES
         sendedmessage = 0
@@ -175,7 +198,7 @@ def adminProcess(sudoku): # rank == 0
 
         # RECEIVE DATA
         
-        printflush(("BEFORE", binary))
+        #printflush(("BEFORE", binary))
 
         for i in range(9*3):
             data = comm.recv(source=MPI.ANY_SOURCE, tag=Tags.RECV_P2.value, status=stts)
@@ -183,7 +206,7 @@ def adminProcess(sudoku): # rank == 0
             if data[2] == True:
                 redosteps = True
                 
-                print(data)
+                #print(data)
                 for update in data[3]:
                     if data[1] == 1:
                         binary[data[0]][update[0]] = update[1]
@@ -191,37 +214,38 @@ def adminProcess(sudoku): # rank == 0
                         binary[update[0]][data[0]] = update[1]
                     else:
                         binary[data[0][0]*3+update[0]//3][data[0][1]*3+update[0]%3] = update[1]
+        
+        if redosteps:
+            continue
+        elif is_finished(binary):
+            break
 
-        printflush(("AFTER-", binary))
+        #####
+        ## PART 3 - TWINS DETECTION
+        #####
+        # PAIR OF NUMBER THAT APPEAR TWICE IN A ROW, COLUMN OR BOX
+
         printbinarydoku(binary)
-        #printflush("looop")
+        print()
 
-        #########
-        ## PART 2: END
-        #########
-
-
-
-
-    #printflush(binary)
-
-    stillalive = size - 1
-    while stillalive > 0:
-        comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
-        comm.send(None, dest=stts.Get_source(), tag=Tags.NOTES_KILL.value)
-        stillalive -= 1
-
-    # PART 2: LONE RANGER
-    # (UN CHIFFRE QUI NE PEUT ETRE QU'A UNE SEULE PLACE)
-    # P2
+        # SEND ROWS
+        for i in range(9):
+            comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+            # stts.Get_source()
+            comm.send((i, binary[i], "ROW"), dest=stts.Get_source(), tag=Tags.SEND_P3.value)
 
 
-    stillalive = size - 1
-    stillalive = 0
-    while stillalive > 0:
-        comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
-        comm.send(None, dest=stts.Get_source(), tag=Tags.EXIT.value)
-        stillalive -= 1
+        #####
+        ## PART 3 - END
+        #####
+
+        #printflush(("AFTER-", binary))
+    printbinarydoku(binary)
+    print()
+
+    return humandoku(binary)
+
+
 
 
 def workerProcess(): # rank != 0
@@ -320,7 +344,92 @@ def workerProcess(): # rank != 0
                     break
 
         return (foundlr, lrindex)
+    def workerFindTwins2(row):
 
+        nbunknown = 0
+        fixed = 2**10
+        unknownindex = []
+        unknowns = []
+        nbtwins = 0
+        for index, x in enumerate(row):
+            if x % 2 == 0:
+                nbunknown += 1
+                unknownindex.append(index)
+            else:
+                fixed += x-1
+        
+        for i in range(1, 10):
+            power = 2**i
+            if fixed & power == 0:
+                nbbox = 0
+                for index in unknownindex:
+                    if row[index] >= power and row[index] & power == power:
+                        nbbox += 1
+                    if nbbox > 2:
+                        break
+                if nbbox == 2:
+                    unknowns.append(power)
+        
+        if nbunknown < 2 or len(unknowns) < 2:
+            return ([])
+
+        twinslocation = []
+        for i, numberi in enumerate(unknowns):
+            for j, numberj in enumerate(unknowns[i+1:]):
+                unknown = numberi + numberj
+                subtwins = [] # twinindex
+                for i in unknownindex:
+                    if row[i] >= unknown and row[i] & unknown == unknown:
+                        subtwins.append(i)
+                    if len(subtwins) > 2:
+                        break
+                if len(subtwins) == 2:
+                    twinslocation.append([subtwins, unknown])
+
+        print(twinslocation, row)
+        return (twinslocation)
+    def workerFindTwins(row):
+        # get unknown numbers
+        fixed = 2**10
+        for x in row:
+            if x % 2 == 1:
+                fixed += x-1
+        unknownnumbers = []
+        for x in range(1,10):
+            num = 2**x
+            if num & fixed == 0:
+                unknownnumbers.append(num)
+        
+        # 1. FIND SIMPLE TWINS
+        simpletwins = []
+        for indexx, x in enumerate(unknownnumbers):
+            for indexy, y in enumerate(unknownnumbers[indexx+1:]):
+                subbindex = []
+                for numindex, num in enumerate(row):
+                    if num == x + y: # simple twin found
+                        subbindex.append(numindex)
+                if len(subbindex) == 2:
+                    simpletwins.append(subbindex)
+        
+        # 2. FIND HARD TWINS
+        hardtwins = []
+        for indexx, x in enumerate(unknownnumbers):
+            for indexy, y in enumerate(unknownnumbers[indexx+1:]):
+                subbindex = []
+                nbx = 0
+                nby = 0
+                for numindex, num in enumerate(row):
+                    if num > x and num & x == x:
+                        nbx += 1
+                    if num > y and num & y == y:
+                        nby += 1
+                    if num > x+y and num & x+y == x+y: # hard twin found
+                        subbindex.append(numindex)
+                if len(subbindex) == 2 and nbx == nby and nbx == 2:
+                    hardtwins.append([subbindex, x+y])
+
+        print(simpletwins, hardtwins, row)
+        
     # PARTIE 1
 
     while True:
@@ -334,7 +443,7 @@ def workerProcess(): # rank != 0
         elif tag == Tags.NOTES_VALIDATE.value:
             result = workerValidateNote(task[1])
             comm.send((result[0], task[0], result[1], task[2]), dest=0, tag=Tags.NOTES_VALIDATE_DONE.value)
-        elif tag == Tags.NOTES_KILL.value:
+        elif tag == Tags.NOTES_KILL.value or tag == Tags.EXIT.value:
             break
         elif tag == Tags.SEND_P2.value:
             #task[0]: line
@@ -344,20 +453,37 @@ def workerProcess(): # rank != 0
             #result[0]: found lr
             #result[1]: indexes of news
             comm.send((task[1],task[2],result[0],result[1],task[0]), dest=0, tag=Tags.RECV_P2.value)
+        elif tag == Tags.SEND_P3.value:
+            #task[0]: position
+            #task[1]: line
+            #task[2]: type
+            result = workerFindTwins(task[1])
+            #result[0] = twinlocations
+            if task[2] == "ROW":
+                pass
 
     # PARTIE 2
 
+def killWorkers():
+    stillalive = size - 1
+    while stillalive > 0:
+        comm.recv(source=MPI.ANY_SOURCE, tag=Tags.READY.value, status=stts)
+        comm.send(None, dest=stts.Get_source(), tag=Tags.EXIT.value)
+        stillalive -= 1
 
 
 def sudokuSolverM(sudokus):
+    solvedokus = []
     if rank == 0:
         for sudoku in sudokus:
-            adminProcess(sudoku)
-            break
+            solvedokus.append(adminProcess(sudoku))
+            print("done", flush=True)
+            
+        killWorkers()
     else:
         workerProcess()
 
-    return sudokus
+    return solvedokus
 
 if __name__ == "__main__":
     with open('input.txt', 'r') as f:
@@ -372,7 +498,8 @@ if __name__ == "__main__":
                 current_sudoku.append(row)
             if len(current_sudoku) == 9:
                 sudokus.append(current_sudoku)
-                if len(sudokus) == 1:
-                    sudokuSolverM(sudokus)
+                #if len(sudokus) == 2:
+                #    sudokuSolverM(sudokus)
                 current_sudoku = []
             row = []
+        sudokuSolverM(sudokus)
