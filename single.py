@@ -1,5 +1,5 @@
 import time
-from main import getSudoku, write_sudoku
+from util import getSudoku, write_sudoku
 
 filenameSingle = "outputSingle.txt"
 
