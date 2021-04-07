@@ -5,6 +5,8 @@
 from mpi4py import MPI
 from enum import Enum
 from copy import deepcopy
+from main import getSudoku, write_sudoku
+import time
 
 enum_p2BeginIndex = 10
 enum_p3BeginIndex = 20
@@ -486,20 +488,36 @@ def sudokuSolverM(sudokus):
     return solvedokus
 
 if __name__ == "__main__":
-    with open('input.txt', 'r') as f:
-        sudokus = []
-        current_sudoku = []
-        row = []
-        for line in f:
-            for num in line.split(','):
-                if num != '\n':
-                    row.append(int(num))
-            if row != []:
-                current_sudoku.append(row)
-            if len(current_sudoku) == 9:
-                sudokus.append(current_sudoku)
-                #if len(sudokus) == 2:
-                #    sudokuSolverM(sudokus)
-                current_sudoku = []
-            row = []
-        sudokuSolverM(sudokus)
+    if rank == 0:
+        filenameMultiple = "outputMulti.txt"
+        list_sudoku = []
+        sudokus = getSudoku(filenameMultiple)
+        
+        print("Starting Admin Multi")
+
+        tStart = time.time()
+
+        for sudoku in sudokus:
+            solved = adminProcess(sudoku)
+            print("Sudoku Completed")
+            list_sudoku.append(solved)
+
+        tEnd = time.time()
+        tFinal = tEnd - tStart
+        
+        print("Ending Multi")
+        print("Printing Results")
+
+        with open(filenameMultiple, 'a') as f:
+            f.write("Temps : " + str(tFinal) + "\n")
+        
+        for current_sudoku in list_sudoku:
+            write_sudoku(current_sudoku, filenameMultiple)
+
+        print("Killing Workers")
+
+        killWorkers()
+    else:
+        print("Starting Worker")
+        workerProcess()
+        print("Ended Worker")

@@ -1,15 +1,5 @@
-import csv, os, time, copy
-from multi import *
-from single import *
-from mpi4py import MPI as mpi
+import csv, os, time, copy, sys
 
-comm = mpi.COMM_WORLD
-size = comm.size
-rank = comm.rank
-
-sudokus = []
-filenameMulti = "outputMulti.txt"
-filenameSingle = "outputSingle.txt"
 def write_sudoku(board,file):
     with open(file, 'a') as f:
         f.write("-"*25+"\n")
@@ -20,9 +10,11 @@ def write_sudoku(board,file):
             elif i % 3 == 2:
                 f.write("|" + "---"*7 + "--|\n")
 
-if rank == 0:
-    if os.path.exists(filenameMulti): os.remove(filenameMulti)
-    if os.path.exists(filenameSingle): os.remove(filenameSingle)
+
+def getSudoku(file):
+    if os.path.exists(file): os.remove(file)
+    sudokus = []
+    
     with open('input.txt', 'r') as f:
         current_sudoku = []
         row = []
@@ -33,41 +25,8 @@ if rank == 0:
             if row != []:
                 current_sudoku.append(row)
             if len(current_sudoku) == 9:
-                write_sudoku(current_sudoku,filenameMulti)
-                write_sudoku(current_sudoku,filenameSingle)
+                write_sudoku(current_sudoku,file)
                 sudokus.append(current_sudoku)
                 current_sudoku = []
             row = []
-
-#single
-sudokusCopy = copy.deepcopy(sudokus)
-
-if rank == 0:
-    tStart = time.time()
-    finishedSudokus = sudokuSolverS(sudokus)
-    tEnd = time.time()
-    finalTime = tEnd - tStart
-    with open(filenameSingle, 'a') as f:
-            f.write("Temps : "+ str(finalTime) +"\n")
-
-    for current_sudoku in finishedSudokus :
-        write_sudoku(current_sudoku,filenameSingle)
-
-comm.barrier()
-
-#multi
-if rank == 0:
-    tStart = time.time()
-
-finishedSudokus = sudokuSolverM(sudokusCopy)
-
-if rank == 0:
-    tEnd = time.time()
-    finalTime = tEnd - tStart
-    with open(filenameMulti, 'a') as f:
-            f.write("Temps : "+ str(finalTime) +"\n")
-
-    for current_sudoku in finishedSudokus :
-        write_sudoku(current_sudoku,filenameMulti)
-
-comm.barrier()
+    return sudokus
