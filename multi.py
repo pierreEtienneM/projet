@@ -5,7 +5,7 @@
 from mpi4py import MPI
 from enum import Enum
 from copy import deepcopy
-from main import getSudoku, write_sudoku
+from utils import getSudoku, write_sudoku
 import time
 
 enum_p2BeginIndex = 10
